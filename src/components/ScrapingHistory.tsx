@@ -112,12 +112,19 @@ export function ScrapingHistory({ onViewResult }: ScrapingHistoryProps) {
         description: "Re-scraping page...",
       });
       
+      console.log("Retrying scrape for URL:", url);
+      
       // Call the edge function to re-scrape the page
       const { data, error } = await supabase.functions.invoke('scrape-facebook-page', {
         body: { url }
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Edge function retry error:", error);
+        throw error;
+      }
+      
+      console.log("Edge function retry response:", data);
       
       if (data) {
         toast({

@@ -74,7 +74,7 @@ function simulateScraping(url: string): Promise<FacebookPage | null> {
     // Simulate network delay
     setTimeout(() => {
       resolve(page);
-    }, 2000);
+    }, 1000);
   });
 }
 
@@ -103,7 +103,26 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { url } = await req.json()
+    console.log("Edge function called with method:", req.method);
+    
+    // Log headers for debugging
+    console.log("Request headers:", Object.fromEntries(req.headers.entries()));
+    
+    let url;
+    try {
+      const body = await req.json();
+      url = body.url;
+      console.log("Received URL:", url);
+    } catch (e) {
+      console.error("Error parsing request body:", e);
+      return new Response(
+        JSON.stringify({ error: 'Invalid request body' }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400 
+        }
+      );
+    }
     
     if (!url) {
       return new Response(
@@ -122,6 +141,8 @@ Deno.serve(async (req) => {
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
 
+    console.log("Simulating scraping for URL:", url);
+    
     // Simulate scraping the Facebook page
     const scrapedPage = await simulateScraping(url)
     
@@ -135,116 +156,137 @@ Deno.serve(async (req) => {
       )
     }
     
-    // Store the page in the database
-    const { data: savedPage, error: pageError } = await supabaseClient
-      .from('facebook_pages')
-      .insert([{
-        page_id: scrapedPage.id,
-        name: scrapedPage.name,
-        url: url,
-        category: scrapedPage.category,
-        created_at: new Date().toISOString()
-      }])
-      .select()
-      .single()
+    console.log("Scraped page:", scrapedPage.name);
     
-    if (pageError) {
-      throw pageError
-    }
-    
-    // Store each post
-    for (const post of scrapedPage.posts) {
-      const { error: postError } = await supabaseClient
-        .from('scraped_posts')
+    try {
+      // Store the page in the database
+      const { data: savedPage, error: pageError } = await supabaseClient
+        .from('facebook_pages')
         .insert([{
-          facebook_post_id: post.id,
-          page_id: savedPage.id,
-          content: post.content,
-          likes: post.likes,
-          comments: post.comments,
-          shares: post.shares,
-          post_date: post.date,
+          page_id: scrapedPage.id,
+          name: scrapedPage.name,
+          url: url,
+          category: scrapedPage.category,
           created_at: new Date().toISOString()
         }])
+        .select()
+        .single()
       
-      if (postError) {
-        console.error('Error saving post:', postError)
+      if (pageError) {
+        console.error("Error saving page:", pageError);
+        throw pageError;
       }
-    }
-    
-    // Add default scraping config
-    const { error: configError } = await supabaseClient
-      .from('scraping_configs')
-      .insert([{
-        page_id: savedPage.id,
-        frequency: 'daily',
-        data_points: ['posts', 'likes', 'comments'],
-        depth: 10,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }])
-    
-    if (configError) {
-      console.error('Error saving config:', configError)
-    }
-    
-    // Update scraping stats (if user is authenticated)
-    const { data: { user } } = await supabaseClient.auth.getUser()
-    
-    if (user) {
-      // Check if stats exist for this user
-      const { data: existingStats } = await supabaseClient
-        .from('scraping_stats')
-        .select('id, total_pages, total_posts')
-        .eq('user_id', user.id)
-        .maybeSingle()
       
-      if (existingStats) {
-        // Update existing stats
-        await supabaseClient
-          .from('scraping_stats')
-          .update({
-            total_pages: (existingStats.total_pages || 0) + 1,
-            total_posts: (existingStats.total_posts || 0) + scrapedPage.posts.length,
-            last_scraped: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingStats.id)
-      } else {
-        // Create new stats
-        await supabaseClient
-          .from('scraping_stats')
+      console.log("Saved page with ID:", savedPage.id);
+      
+      // Store each post
+      for (const post of scrapedPage.posts) {
+        const { error: postError } = await supabaseClient
+          .from('scraped_posts')
           .insert([{
-            user_id: user.id,
-            total_pages: 1,
-            total_posts: scrapedPage.posts.length,
-            last_scraped: new Date().toISOString(),
-            success_rate: 100,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            facebook_post_id: post.id,
+            page_id: savedPage.id,
+            content: post.content,
+            likes: post.likes,
+            comments: post.comments,
+            shares: post.shares,
+            post_date: post.date,
+            created_at: new Date().toISOString()
           }])
+        
+        if (postError) {
+          console.error('Error saving post:', postError)
+        }
       }
+      
+      // Add default scraping config
+      const { error: configError } = await supabaseClient
+        .from('scraping_configs')
+        .insert([{
+          page_id: savedPage.id,
+          frequency: 'daily',
+          data_points: ['posts', 'likes', 'comments'],
+          depth: 10,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }])
+      
+      if (configError) {
+        console.error('Error saving config:', configError)
+      }
+      
+      // Update scraping stats (if user is authenticated)
+      try {
+        const { data: { user } } = await supabaseClient.auth.getUser()
+        
+        if (user) {
+          // Check if stats exist for this user
+          const { data: existingStats } = await supabaseClient
+            .from('scraping_stats')
+            .select('id, total_pages, total_posts')
+            .eq('user_id', user.id)
+            .maybeSingle()
+          
+          if (existingStats) {
+            // Update existing stats
+            await supabaseClient
+              .from('scraping_stats')
+              .update({
+                total_pages: (existingStats.total_pages || 0) + 1,
+                total_posts: (existingStats.total_posts || 0) + scrapedPage.posts.length,
+                last_scraped: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingStats.id)
+          } else {
+            // Create new stats
+            await supabaseClient
+              .from('scraping_stats')
+              .insert([{
+                user_id: user.id,
+                total_pages: 1,
+                total_posts: scrapedPage.posts.length,
+                last_scraped: new Date().toISOString(),
+                success_rate: 100,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }])
+          }
+        }
+      } catch (statsError) {
+        console.error("Error updating stats (non-critical):", statsError);
+        // Continue execution even if stats update fails
+      }
+      
+      // Return the saved page with its posts
+      return new Response(
+        JSON.stringify({
+          id: savedPage.id,
+          name: scrapedPage.name,
+          category: scrapedPage.category,
+          followers: scrapedPage.followers,
+          likes: scrapedPage.likes,
+          description: scrapedPage.description,
+          posts: scrapedPage.posts,
+          lastUpdated: scrapedPage.lastUpdated
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    } catch (dbError) {
+      console.error("Database error:", dbError);
+      return new Response(
+        JSON.stringify({ error: 'Database error', details: dbError.message }),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 500 
+        }
+      )
     }
-    
-    // Return the saved page with its posts
-    return new Response(
-      JSON.stringify({
-        id: savedPage.id,
-        name: scrapedPage.name,
-        category: scrapedPage.category,
-        followers: scrapedPage.followers,
-        likes: scrapedPage.likes,
-        description: scrapedPage.description,
-        posts: scrapedPage.posts,
-        lastUpdated: scrapedPage.lastUpdated
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
   } catch (error) {
     console.error('Error in scrape-facebook-page:', error)
     
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: 'Internal server error', details: error.message }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500 

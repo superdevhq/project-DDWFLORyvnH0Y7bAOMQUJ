@@ -31,14 +31,19 @@ export function ScrapeForm({ onScrapeComplete }: ScrapeFormProps) {
     setLoading(true);
 
     try {
+      console.log("Calling edge function with URL:", url);
+      
       // Call the edge function to scrape the page
       const { data, error } = await supabase.functions.invoke('scrape-facebook-page', {
         body: { url }
       });
       
       if (error) {
+        console.error("Edge function error:", error);
         throw error;
       }
+      
+      console.log("Edge function response:", data);
       
       if (data) {
         toast({
