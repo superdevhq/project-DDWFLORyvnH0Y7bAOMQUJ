@@ -111,7 +111,7 @@ export function ScrapingHistory({ onViewResult }: ScrapingHistoryProps) {
         title: "Info",
         description: "Re-scraping page...",
       });
-      
+
       console.log("Retrying scrape for URL:", url);
       
       // Call the edge function to re-scrape the page
@@ -125,7 +125,7 @@ export function ScrapingHistory({ onViewResult }: ScrapingHistoryProps) {
       }
       
       console.log("Edge function retry response:", data);
-      
+
       if (data) {
         toast({
           title: "Success",

@@ -1,6 +1,12 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
-import { corsHeaders } from '../_shared/cors.ts'
+
+// Define CORS headers directly in the function
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+}
 
 interface FacebookPost {
   id: string;
@@ -123,7 +129,7 @@ Deno.serve(async (req) => {
         }
       );
     }
-    
+
     if (!url) {
       return new Response(
         JSON.stringify({ error: 'URL is required' }),
@@ -155,9 +161,9 @@ Deno.serve(async (req) => {
         }
       )
     }
-    
+
     console.log("Scraped page:", scrapedPage.name);
-    
+
     try {
       // Store the page in the database
       const { data: savedPage, error: pageError } = await supabaseClient
@@ -171,12 +177,12 @@ Deno.serve(async (req) => {
         }])
         .select()
         .single()
-      
+
       if (pageError) {
         console.error("Error saving page:", pageError);
         throw pageError;
       }
-      
+
       console.log("Saved page with ID:", savedPage.id);
       
       // Store each post
