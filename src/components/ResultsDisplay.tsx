@@ -16,6 +16,21 @@ export function ResultsDisplay({ data }: ResultsDisplayProps) {
     return null;
   }
 
+  // Ensure we have posts to display
+  const posts = data.posts || [];
+  
+  // Calculate engagement metrics
+  const totalPosts = posts.length;
+  const avgLikes = totalPosts > 0 
+    ? Math.round(posts.reduce((acc, post) => acc + post.likes, 0) / totalPosts) 
+    : 0;
+  const avgComments = totalPosts > 0 
+    ? Math.round(posts.reduce((acc, post) => acc + post.comments, 0) / totalPosts) 
+    : 0;
+  const avgShares = totalPosts > 0 
+    ? Math.round(posts.reduce((acc, post) => acc + post.shares, 0) / totalPosts) 
+    : 0;
+
   return (
     <Card className="mt-6">
       <CardHeader>
@@ -24,7 +39,7 @@ export function ResultsDisplay({ data }: ResultsDisplayProps) {
           <Badge>{data.category}</Badge>
         </CardTitle>
         <CardDescription>{data.description}</CardDescription>
-        <div className="flex space-x-4 mt-2">
+        <div className="flex flex-wrap gap-4 mt-2">
           <div className="flex items-center text-sm">
             <Users className="mr-1 h-4 w-4 text-muted-foreground" />
             <span>{data.followers.toLocaleString()} followers</span>
@@ -42,15 +57,21 @@ export function ResultsDisplay({ data }: ResultsDisplayProps) {
       <CardContent>
         <Tabs defaultValue="posts">
           <TabsList className="mb-4">
-            <TabsTrigger value="posts">Posts</TabsTrigger>
+            <TabsTrigger value="posts">Posts ({totalPosts})</TabsTrigger>
             <TabsTrigger value="stats">Stats</TabsTrigger>
           </TabsList>
           <TabsContent value="posts">
-            <div className="space-y-4">
-              {data.posts.map((post) => (
-                <PostCard key={post.id} post={post} />
-              ))}
-            </div>
+            {posts.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No posts found for this page.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {posts.map((post) => (
+                  <PostCard key={post.id} post={post} />
+                ))}
+              </div>
+            )}
           </TabsContent>
           <TabsContent value="stats">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -62,34 +83,22 @@ export function ResultsDisplay({ data }: ResultsDisplayProps) {
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="text-sm">Total Posts</span>
-                      <span className="font-medium">{data.posts.length}</span>
+                      <span className="font-medium">{totalPosts}</span>
                     </div>
                     <Separator />
                     <div className="flex justify-between items-center">
                       <span className="text-sm">Average Likes</span>
-                      <span className="font-medium">
-                        {Math.round(
-                          data.posts.reduce((acc, post) => acc + post.likes, 0) / data.posts.length
-                        )}
-                      </span>
+                      <span className="font-medium">{avgLikes}</span>
                     </div>
                     <Separator />
                     <div className="flex justify-between items-center">
                       <span className="text-sm">Average Comments</span>
-                      <span className="font-medium">
-                        {Math.round(
-                          data.posts.reduce((acc, post) => acc + post.comments, 0) / data.posts.length
-                        )}
-                      </span>
+                      <span className="font-medium">{avgComments}</span>
                     </div>
                     <Separator />
                     <div className="flex justify-between items-center">
                       <span className="text-sm">Average Shares</span>
-                      <span className="font-medium">
-                        {Math.round(
-                          data.posts.reduce((acc, post) => acc + post.shares, 0) / data.posts.length
-                        )}
-                      </span>
+                      <span className="font-medium">{avgShares}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -100,7 +109,9 @@ export function ResultsDisplay({ data }: ResultsDisplayProps) {
                 </CardHeader>
                 <CardContent>
                   <div className="h-40 flex items-center justify-center text-muted-foreground">
-                    Growth chart will be displayed here
+                    <p className="text-sm text-center">
+                      Growth metrics will be available after multiple scrapes of the same page.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -113,12 +124,15 @@ export function ResultsDisplay({ data }: ResultsDisplayProps) {
 }
 
 function PostCard({ post }: { post: FacebookPost }) {
+  // Handle potential missing data
+  const postDate = post.date ? new Date(post.date) : new Date();
+  
   return (
     <Card>
       <CardContent className="pt-6">
         <p className="mb-2">{post.content}</p>
         <div className="flex justify-between items-center text-sm text-muted-foreground mt-4">
-          <span>{format(new Date(post.date), 'MMM d, yyyy')}</span>
+          <span>{format(postDate, 'MMM d, yyyy')}</span>
           <div className="flex space-x-4">
             <div className="flex items-center">
               <ThumbsUp className="mr-1 h-4 w-4" />

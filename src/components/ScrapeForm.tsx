@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Search } from "lucide-react";
-import { mockScrapePage } from "@/lib/mockData";
 import { FacebookPage } from "@/lib/mockData";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ScrapeFormProps {
   onScrapeComplete: (data: FacebookPage) => void;
@@ -31,15 +31,21 @@ export function ScrapeForm({ onScrapeComplete }: ScrapeFormProps) {
     setLoading(true);
 
     try {
-      // Simulate scraping process
-      const result = await mockScrapePage(url);
+      // Call the edge function to scrape the page
+      const { data, error } = await supabase.functions.invoke('scrape-facebook-page', {
+        body: { url }
+      });
       
-      if (result) {
+      if (error) {
+        throw error;
+      }
+      
+      if (data) {
         toast({
           title: "Success",
-          description: `Successfully scraped ${result.name}`,
+          description: `Successfully scraped ${data.name}`,
         });
-        onScrapeComplete(result);
+        onScrapeComplete(data);
       } else {
         toast({
           title: "Error",
@@ -48,6 +54,7 @@ export function ScrapeForm({ onScrapeComplete }: ScrapeFormProps) {
         });
       }
     } catch (error) {
+      console.error("Scraping error:", error);
       toast({
         title: "Error",
         description: "An unexpected error occurred. Please try again.",
@@ -94,6 +101,7 @@ export function ScrapeForm({ onScrapeComplete }: ScrapeFormProps) {
             <ul className="list-disc list-inside mt-1">
               <li>facebook.com/TechInnovations</li>
               <li>facebook.com/GreenEarthInitiative</li>
+              <li>facebook.com/AnyPageName</li>
             </ul>
           </div>
         </form>
